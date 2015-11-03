@@ -22,28 +22,8 @@ app = Flask(__name__)
 
 q = Queue()
 
-def point_distance(x1, y1, x2, y2):
-	return ((x1-x2)**2.0 + (y1-y2)**2.0)**(0.5)
-
 def remap(value, min1, max1, min2, max2):
 	return float(min2) + (float(value) - float(min1)) * (float(max2) - float(min2)) / (float(max1) - float(min1))
-
-def normalizeArray(inputArray):
-	maxVal = 0
-	minVal = 100000000000
-
-	for j in range(len(inputArray)):
-		for i in range(len(inputArray[j])):
-			if inputArray[j][i] > maxVal:
-				maxVal = inputArray[j][i]
-			if inputArray[j][i] < minVal:
-				minVal = inputArray[j][i]
-
-	for j in range(len(inputArray)):
-		for i in range(len(inputArray[j])):
-			inputArray[j][i] = remap(inputArray[j][i], minVal, maxVal, 0, 1)
-
-	return inputArray
 
 def event_stream():
     while True:
