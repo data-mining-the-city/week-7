@@ -10,21 +10,22 @@ html, body, #map {
 }
 
 circle {
-	fill-opacity: .1;
-	fill: gray;
-	stroke: red;
+	fill-opacity: .4;
+	fill: black;
+	stroke: black;
 	stroke-width: 2px;
 }
 circle:hover {
-	stroke: black;
-	fill: red;
+	stroke: red;
+	/*fill: red;*/
 	fill-opacity: .9;
-	stroke-width: 2px;
+	stroke-width: 3px;
 	cursor: crosshair;
 }
 
 line {
-	stroke:rgba(0,0,0, .3);
+	stroke: black;
+	stroke-opacity: .2;
 	stroke-width: 1px;
 }
 

@@ -13,6 +13,8 @@ var tooltip_category = d3.select("#cat");
 
 
 var map = L.map('map').setView([22.539029, 114.062076], 16);
+
+var markerClicked = false;
 	
 
 //this is the OpenStreetMap tile implementation
@@ -30,6 +32,7 @@ L.tileLayer('http://{s}.tile.osm.org/{z}/{x}/{y}.png', {
 
 //create variables to store a reference to svg and g elements
 
+d3.select(map.getPanes().overlayPane).on("click", showLines);
 
 var svg = d3.select(map.getPanes().overlayPane).append("svg");
 var g_line = svg.append("g").attr("class", "leaflet-zoom-hide");
@@ -89,8 +92,7 @@ function updateData(){
 			.on("click", function(d){
 				hideLines(d.id);
 			})
-			.attr("r", 10)
-			// .attr("fill", function(d) { return "hsl(" + Math.floor((1-d.properties.priceNorm)*250) + ", 100%, 50%)"; })
+			.attr("r", 7)
 		;
 
 		var lines = g_line.selectAll("line").data(data.lines);
@@ -135,9 +137,12 @@ function updateData(){
 
 		function hideLines(id) {
 
+			markerClicked = true;
+
 			var others = [id];
 
 			lines.transition()
+				.style("stroke-opacity", .5)
 				.style("stroke-width", function(d) { 
 					if (d.from == id ){
 						others.push(d.to);
@@ -172,7 +177,6 @@ function updateData(){
 							}								
 							if (val < minVal){
 								minVal = val;
-
 							}
 
 							return "visible";
@@ -180,12 +184,17 @@ function updateData(){
 					}
 					return "hidden";
 				})
-				.style("fill", "red")
-				.style("fill-opacity", .3)
 			;
 
 			circles.transition()
-				.attr("r", function(d) { return remap(d.properties.score, minVal, maxVal, 10, 30); })
+				.attr("r", function(d) { 
+					for (var i = 0; i < others.length; i++){
+						if (d.id == others[i]){
+							return remap(d.properties.score, minVal, maxVal, 10, 30);
+						}
+					}
+					return 7;
+				})
 			;
 		};
 	});
@@ -196,18 +205,23 @@ function updateData(){
 
 
 function showLines() {
-	var lines = g_line.selectAll("line");
-	lines.transition()
+
+	if (markerClicked == true){
+		markerClicked = false
+		return
+	}
+
+	g_line.selectAll("line")
+		.transition()
+		.style("stroke-opacity", .2)
 		.style("stroke-width", 1)
 		.style("visibility", "visible")
 	;
 
-	var circles = g.selectAll("circle");
-	circles.transition()
-		.attr("r", 10)
+	g.selectAll("circle")
+		.transition()
+		.attr("r", 7)
 		.style("visibility", "visible")
-		.style("fill-opacity", .1)
-		.style("fill", "gray")
 	;
 };
 
