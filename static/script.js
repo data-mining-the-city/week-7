@@ -14,8 +14,6 @@ var tooltip_category = d3.select("#cat");
 
 var map = L.map('map').setView([22.539029, 114.062076], 16);
 
-var markerClicked = false;
-	
 
 //this is the OpenStreetMap tile implementation
 L.tileLayer('http://{s}.tile.osm.org/{z}/{x}/{y}.png', {
@@ -32,10 +30,8 @@ L.tileLayer('http://{s}.tile.osm.org/{z}/{x}/{y}.png', {
 
 //create variables to store a reference to svg and g elements
 
-d3.select(map.getPanes().overlayPane).on("click", showLines);
 
 var svg = d3.select(map.getPanes().overlayPane).append("svg");
-var g_line = svg.append("g").attr("class", "leaflet-zoom-hide");
 var g = svg.append("g").attr("class", "leaflet-zoom-hide");
 
 function projectPoint(lat, lng) {
@@ -68,7 +64,6 @@ function updateData(){
 	console.log(request);
 
 	g.selectAll("circle").remove()
-	g_line.selectAll("line").remove()
 
   	d3.json(request, function(data) {
 
@@ -89,14 +84,8 @@ function updateData(){
 			.on("mouseout", function(){
 				tooltip.style("visibility", "hidden");
 			})
-			.on("click", function(d){
-				hideLines(d.id);
-			})
 			.attr("r", 7)
 		;
-
-		var lines = g_line.selectAll("line").data(data.lines);
-		lines.enter().append("line")
 
 		// call function to update geometry
 		update();
@@ -119,7 +108,6 @@ function updateData(){
 		        .style("top", (topLeft[1] - buffer) + "px");
 
 		    g   .attr("transform", "translate(" + (-topLeft[0] + buffer) + "," + (-topLeft[1] + buffer) + ")");
-		    g_line.attr("transform", "translate(" + (-topLeft[0] + buffer) + "," + (-topLeft[1] + buffer) + ")");
 
 		    // update circle position and size
 		    circles
@@ -127,102 +115,11 @@ function updateData(){
 		    	.attr("cy", function(d) { return projectPoint(d.geometry.coordinates[0], d.geometry.coordinates[1]).y; })
     		;
 
-			lines
-				.attr("x1", function(d) { return projectPoint(d.coordinates[0], d.coordinates[1]).x; })
-				.attr("y1", function(d) { return projectPoint(d.coordinates[0], d.coordinates[1]).y; })
-				.attr("x2", function(d) { return projectPoint(d.coordinates[2], d.coordinates[3]).x; })
-				.attr("y2", function(d) { return projectPoint(d.coordinates[2], d.coordinates[3]).y; })
-			;
 		};
 
-		function hideLines(id) {
-
-			markerClicked = true;
-
-			var others = [id];
-
-			lines.transition()
-				.style("stroke-opacity", .5)
-				.style("stroke-width", function(d) { 
-					if (d.from == id ){
-						others.push(d.to);
-						return 3;
-					};
-					if(d.to == id ){
-						others.push(d.from);
-						return 3;
-					}; 
-				})
-				.style("visibility", function(d) { 
-					if (d.from == id || d.to == id){
-						return "visible";
-					}else{
-						return "hidden";
-					}; 
-				})
-			;
-
-			var minVal = 1000000000;
-			var maxVal = 0;
-
-			circles
-				.style("visibility", function(d) { 
-
-					var val = d.properties.score;
-
-					for (var i = 0; i < others.length; i++){
-						if (d.id == others[i]){
-							if (val > maxVal){
-								maxVal = val;
-							}								
-							if (val < minVal){
-								minVal = val;
-							}
-
-							return "visible";
-						}
-					}
-					return "hidden";
-				})
-			;
-
-			circles.transition()
-				.attr("r", function(d) { 
-					for (var i = 0; i < others.length; i++){
-						if (d.id == others[i]){
-							return remap(d.properties.score, minVal, maxVal, 10, 30);
-						}
-					}
-					return 7;
-				})
-			;
-		};
 	});
 
 };
 
-
-
-
-function showLines() {
-
-	if (markerClicked == true){
-		markerClicked = false
-		return
-	}
-
-	g_line.selectAll("line")
-		.transition()
-		.style("stroke-opacity", .2)
-		.style("stroke-width", 1)
-		.style("visibility", "visible")
-	;
-
-	g.selectAll("circle")
-		.transition()
-		.attr("r", 7)
-		.style("visibility", "visible")
-	;
-};
 
 updateData();

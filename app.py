@@ -22,28 +22,8 @@ app = Flask(__name__)
 
 q = Queue()
 
-def point_distance(x1, y1, x2, y2):
-	return ((x1-x2)**2.0 + (y1-y2)**2.0)**(0.5)
-
 def remap(value, min1, max1, min2, max2):
 	return float(min2) + (float(value) - float(min1)) * (float(max2) - float(min2)) / (float(max1) - float(min1))
-
-def normalizeArray(inputArray):
-	maxVal = 0
-	minVal = 100000000000
-
-	for j in range(len(inputArray)):
-		for i in range(len(inputArray[j])):
-			if inputArray[j][i] > maxVal:
-				maxVal = inputArray[j][i]
-			if inputArray[j][i] < minVal:
-				minVal = inputArray[j][i]
-
-	for j in range(len(inputArray)):
-		for i in range(len(inputArray[j])):
-			inputArray[j][i] = remap(inputArray[j][i], minVal, maxVal, 0, 1)
-
-	return inputArray
 
 def event_stream():
     while True:
@@ -93,37 +73,9 @@ def getData():
 	print 'received ' + str(numListings) + ' records'
 
 	placesDict = {}
-	scoreDict = {}
 
 	for place in records:
 		placesDict[place._rid] = {'lat': place.lat, 'lng': place.lng}
-		scoreDict[place._rid] = 0
-
-	for i, rid in enumerate(placesDict.keys()):
-
-		q.put('processing ' + str(i) + ' out of ' + str(numListings) + ' places...')
-
-		s = "SELECT * FROM (TRAVERSE in(Checkin) FROM {}) WHERE @class = 'User'"
-
-		people = client.command(s.format(rid))
-		uids = [person.uid for person in people]
-
-		placesDict[rid]['users'] = set(uids)
-
-	q.put('matching records...')
-
-	lines = []
-
-	for place1 in placesDict.keys():
-		users1 = placesDict[place1]['users']
-		lat1 = placesDict[place1]['lat']
-		lng1 = placesDict[place1]['lng']
-		placesDict.pop(place1)
-		for place2 in placesDict.keys():
-			if len(users1 & placesDict[place2]['users']) > 1:
-				scoreDict[place1] += 1
-				scoreDict[place2] += 1
-				lines.append({'from': place1, 'to': place2, 'coordinates': [lat1, lng1, placesDict[place2]['lat'], placesDict[place2]['lng']]})
 
 	client.db_close()
 
@@ -131,19 +83,15 @@ def getData():
 	output = {"type":"FeatureCollection","features":[]}
 
 	for record in records:
-		if scoreDict[record._rid] < 1:
-			continue
 		feature = {"type":"Feature","properties":{},"geometry":{"type":"Point"}}
 		feature["id"] = record._rid
 		feature["properties"]["name"] = record.title
 		feature["properties"]["cat"] = record.cat_1
-		feature["properties"]["score"] = scoreDict[record._rid]
 		feature["geometry"]["coordinates"] = [record.lat, record.lng]
 
 		output["features"].append(feature)
 
 
-	output["lines"] = lines
 
 	q.put('idle')
 	return json.dumps(output)

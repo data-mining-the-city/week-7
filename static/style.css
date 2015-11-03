@@ -23,12 +23,6 @@ circle:hover {
 	cursor: crosshair;
 }
 
-line {
-	stroke: black;
-	stroke-opacity: .2;
-	stroke-width: 1px;
-}
-
 div.tooltip{
 	padding: 6px;
 	background: white;
