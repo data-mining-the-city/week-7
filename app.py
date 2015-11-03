@@ -70,17 +70,11 @@ def getData():
 	lat2 = str(request.args.get('lat2'))
 	lng2 = str(request.args.get('lng2'))
 
-	w = float(request.args.get('w'))
-	h = float(request.args.get('h'))
-	cell_size = float(request.args.get('cell_size'))
-
-	analysis = request.args.get('analysis')
-
 	print "received coordinates: [" + lat1 + ", " + lat2 + "], [" + lng1 + ", " + lng2 + "]"
 	
 	client = pyorient.OrientDB("localhost", 2424)
 	session_id = client.connect("root", "password")
-	db_name = "soufun"
+	db_name = "weibo"
 	db_username = "admin"
 	db_password = "admin"
 
@@ -91,166 +85,69 @@ def getData():
 		print "database [" + db_name + "] does not exist! session ending..."
 		sys.exit()
 
-	query = 'SELECT FROM Listing WHERE latitude BETWEEN {} AND {} AND longitude BETWEEN {} AND {}'
+	query = 'SELECT FROM Place WHERE lat BETWEEN {} AND {} AND lng BETWEEN {} AND {} AND cat_2 = "Food/Drinks"'
 
 	records = client.command(query.format(lat1, lat2, lng1, lng2))
-
-	# random.shuffle(records)
-	# records = records[:100]
 
 	numListings = len(records)
 	print 'received ' + str(numListings) + ' records'
 
+	placesDict = {}
+	scoreDict = {}
+
+	for place in records:
+		placesDict[place._rid] = {'lat': place.lat, 'lng': place.lng}
+		scoreDict[place._rid] = 0
+
+	for i, rid in enumerate(placesDict.keys()):
+
+		q.put('processing ' + str(i) + ' out of ' + str(numListings) + ' places...')
+
+		s = "SELECT * FROM (TRAVERSE in(Checkin) FROM {}) WHERE @class = 'User'"
+
+		people = client.command(s.format(rid))
+		uids = [person.uid for person in people]
+
+		placesDict[rid]['users'] = set(uids)
+
+	q.put('matching records...')
+
+	lines = []
+
+	for place1 in placesDict.keys():
+		users1 = placesDict[place1]['users']
+		lat1 = placesDict[place1]['lat']
+		lng1 = placesDict[place1]['lng']
+		placesDict.pop(place1)
+		for place2 in placesDict.keys():
+			if len(users1 & placesDict[place2]['users']) > 1:
+				scoreDict[place1] += 1
+				scoreDict[place2] += 1
+				lines.append({'from': place1, 'to': place2, 'coordinates': [lat1, lng1, placesDict[place2]['lat'], placesDict[place2]['lng']]})
+
 	client.db_close()
 
-	# iterate through data to find minimum and maximum price
-	minPrice = 1000000000
-	maxPrice = 0
-
-	for record in records:
-		price = record.price
-
-		if price > maxPrice:
-			maxPrice = price
-		if price < minPrice:
-			minPrice = price
-
-	print minPrice
-	print maxPrice
 
 	output = {"type":"FeatureCollection","features":[]}
 
 	for record in records:
+		if scoreDict[record._rid] < 1:
+			continue
 		feature = {"type":"Feature","properties":{},"geometry":{"type":"Point"}}
 		feature["id"] = record._rid
 		feature["properties"]["name"] = record.title
-		feature["properties"]["price"] = record.price
-		feature["properties"]["priceNorm"] = remap(record.price, minPrice, maxPrice, 0, 1)
-		feature["geometry"]["coordinates"] = [record.latitude, record.longitude]
+		feature["properties"]["cat"] = record.cat_1
+		feature["properties"]["score"] = scoreDict[record._rid]
+		feature["geometry"]["coordinates"] = [record.lat, record.lng]
 
 		output["features"].append(feature)
 
-	if analysis == "false":
-		q.put('idle')
-		return json.dumps(output)
 
-	q.put('starting analysis...')
+	output["lines"] = lines
 
-	output["analysis"] = []
-
-	numW = int(math.floor(w/cell_size))
-	numH = int(math.floor(h/cell_size))
-
-	grid = []
-
-	for j in range(numH):
-		grid.append([])
-		for i in range(numW):
-			grid[j].append(0)
-
-	## HEAT MAP IMPLEMENTATION
-	# for record in records:
-
-	# 	pos_x = int(remap(record.longitude, lng1, lng2, 0, numW))
-	# 	pos_y = int(remap(record.latitude, lat1, lat2, numH, 0))
-
-	# 	spread = 12
-
-	# 	for j in range(max(0, (pos_y-spread)), min(numH, (pos_y+spread))):
-	# 		for i in range(max(0, (pos_x-spread)), min(numW, (pos_x+spread))):
-	# 			grid[j][i] += 2 * math.exp((-point_distance(i,j,pos_x,pos_y)**2)/(2*(spread/2)**2))
-
-
-	## MACHINE LEARNING IMPLEMENTATION
-
-	featureData = []
-	targetData = []
-
-	for record in records:
-		featureData.append([record.latitude, record.longitude])
-		targetData.append(record.price)
-
-	X = np.asarray(featureData, dtype='float')
-	y = np.asarray(targetData, dtype='float')
-
-	breakpoint = int(numListings * .7)
-
-	print "length of dataset: " + str(numListings)
-	print "length of training set: " + str(breakpoint)
-	print "length of validation set: " + str(numListings-breakpoint)
-
-	# create training and validation set
-	X_train = X[:breakpoint]
-	X_val = X[breakpoint:]
-
-	y_train = y[:breakpoint]
-	y_val = y[breakpoint:]
-
-	#mean 0, variance 1
-	scaler = preprocessing.StandardScaler().fit(X_train)
-	X_train_scaled = scaler.transform(X_train)
-
-	mse_min = 10000000000000000000000
-
-	for C in [.01, 1, 100, 10000, 1000000]:
-
-		for e in [.01, 1, 100, 10000, 1000000]:
-
-				for g in [.01, 1, 100, 10000, 1000000]:
-
-					q.put("training model: C[" + str(C) + "], e[" + str(e) + "], g[" + str(g) + "]")
-
-					model = svm.SVR(C=C, epsilon=e, gamma=g, kernel='rbf', cache_size=2000)
-					model.fit(X_train_scaled, y_train)
-
-					y_val_p = [model.predict(i) for i in X_val]
-
-					mse = 0
-					for i in range(len(y_val_p)):
-						mse += (y_val_p[i] - y_val[i]) ** 2
-					mse /= len(y_val_p)
-
-					if mse < mse_min:
-						mse_min = mse
-						model_best = model
-						C_best = C
-						e_best = e
-						g_best = g
-
-	q.put("best model: C[" + str(C_best) + "], e[" + str(e_best) + "], g[" + str(g_best) + "]")
-
-	for j in range(numH):
-		for i in range(numW):
-			lat = remap(j, numH, 0, lat1, lat2)
-			lng = remap(i, 0, numW, lng1, lng2)
-
-			testData = [[lat, lng]]
-			X_test = np.asarray(testData, dtype='float')
-			X_test_scaled = scaler.transform(X_test)
-			grid[j][i] = model_best.predict(X_test_scaled)
-
-
-
-	grid = normalizeArray(grid)
-
-	offsetLeft = (w - numW * cell_size) / 2.0
-	offsetTop = (h - numH * cell_size) / 2.0
-
-	for j in range(numH):
-		for i in range(numW):
-			newItem = {}
-
-			newItem['x'] = offsetLeft + i*cell_size
-			newItem['y'] = offsetTop + j*cell_size
-			newItem['width'] = cell_size-1
-			newItem['height'] = cell_size-1
-			newItem['value'] = grid[j][i]
-
-			output["analysis"].append(newItem)
-
-	# q.put('idle')
-
+	q.put('idle')
 	return json.dumps(output)
+
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0',port=5000,debug=True,threaded=True)

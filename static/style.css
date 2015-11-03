@@ -10,14 +10,22 @@ html, body, #map {
 }
 
 circle {
-	fill-opacity: .3;
+	fill-opacity: .1;
 	fill: gray;
-	stroke-width: 0px;
+	stroke: red;
+	stroke-width: 2px;
 }
 circle:hover {
 	stroke: black;
+	fill: red;
+	fill-opacity: .9;
 	stroke-width: 2px;
 	cursor: crosshair;
+}
+
+line {
+	stroke:rgba(0,0,0, .3);
+	stroke-width: 1px;
 }
 
 div.tooltip{
@@ -38,8 +46,8 @@ div.menu{
 	padding: 10px;
 	top: 0px;
 	right: 0px;
-	width: 250px;
-	height: 500px;
+	width: 230px;
+	height: 230px;
 	background: rgba(255,255,255,.8);
 }
 
